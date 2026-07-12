@@ -13,11 +13,24 @@ st.write("Proyek Analisis Data & Prediktif — Kelompok 5")
 st.markdown("---")
 
 # ==========================================
+# SISTEM CACHE UNTUK MENGHEMAT MEMORI (RAM)
+# ==========================================
+# Fungsi ini memastikan CSV hanya dibaca 1x oleh server
+@st.cache_data
+def load_data():
+    return pd.read_csv('dataset_tech_skills_clean.csv', sep=';')
+
+# Fungsi ini memastikan Model PKL hanya dimuat 1x oleh server
+@st.cache_resource
+def load_model():
+    return joblib.load('model_prediksi_gaji.pkl')
+
+# ==========================================
 # 2. MEMUAT DATASET (CSV)
 # ==========================================
 try:
-    # Coba gunakan ini agar baris yang error otomatis dilewati
-    df = pd.read_csv('dataset_tech_skills_clean.csv', sep=';')
+    # Memanggil data menggunakan fungsi cache
+    df = load_data()
     
     # Ringkasan Data Utama (Metrik)
     col1, col2, col3 = st.columns(3)
@@ -67,7 +80,8 @@ try:
     st.pyplot(fig3)
 
 except FileNotFoundError:
-    st.error("❌ File 'dataset_tech_skills_clean.csv' tidak ditemukan di folder D:\Datashet_Kelompok5. Pastikan nama filenya sudah persis sama!")
+    # Tanda slash sudah diperbaiki di sini agar tidak error syntax \D
+    st.error("❌ File 'dataset_tech_skills_clean.csv' tidak ditemukan. Pastikan nama filenya sudah persis sama!")
 
 st.markdown("---")
 
@@ -93,61 +107,63 @@ st.markdown("<br>", unsafe_allow_html=True)
 # 3. Area Prediksi
 st.subheader("🔮 Coba prediksi gaji IT 🔗")
 try:
-    model = joblib.load('model_prediksi_gaji.pkl')
+    # Memanggil model menggunakan fungsi cache
+    model = load_model()
     
     st.write("**Centang keahlian yang dimiliki:**")
     
-    # Deteksi otomatis kolom berawalan "Skill_"
-    skill_columns = [col for col in df.columns if str(col).startswith('Skill_')]
-    
-    if len(skill_columns) > 0:
-        user_inputs = []
-        cols = st.columns(3) # Dibagi 3 kolom sejajar
+    # Pastikan variabel df ada sebelum memproses skill
+    if 'df' in locals():
+        # Deteksi otomatis kolom berawalan "Skill_"
+        skill_columns = [col for col in df.columns if str(col).startswith('Skill_')]
         
-        for i, col_name in enumerate(skill_columns):
-            with cols[i % 3]:
-                display_name = col_name.replace('Skill_', '').replace('_', ' ')
-                is_checked = st.checkbox(display_name)
-                user_inputs.append(1 if is_checked else 0)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Tombol utama warna merah/aksen
-        if st.button("Hitung prediksi gaji", type="primary"):
-            try:
-                # Menghitung prediksi dari model
-                prediksi = model.predict([user_inputs])
-                gaji_tebakan = prediksi[0]
-                
-                # Mengambil rata-rata gaji dari dataset asli
-                gaji_rata2 = df['Gaji_Clean'].mean()
-                
-                # Menampilkan teks hasil
-                st.success(f"💡 Estimasi Penawaran Gaji: **Rp {gaji_tebakan:,.0f}**")
-                
-                # Menampilkan grafik dinamis
-                st.markdown("📈 **Perbandingan Gaji: Prediksi vs Rata-rata Pasar IT**")
-                
-                import pandas as pd
-                data_grafik = pd.DataFrame({
-                    "Kategori": ["Prediksi Gaji Anda", "Rata-rata Gaji Pasar"],
-                    "Nominal (Rupiah)": [int(gaji_tebakan), int(gaji_rata2)]
-                }).set_index("Kategori")
-                
-                st.bar_chart(data_grafik)
-                
-                # --- TAMBAHAN ANGKA DI BAWAH GRAFIK ---
-                colA, colB = st.columns(2)
-                with colA:
-                    st.info(f"🎯 **Gaji Anda:**\n### Rp {gaji_tebakan:,.0f}")
-                with colB:
-                    st.info(f"📊 **Rata-rata Pasar:**\n### Rp {gaji_rata2:,.0f}")
-                # --------------------------------------
-                
-            except Exception as e:
-                st.error(f"Gagal memproses prediksi. (Error: {e})")
-    else:
-        st.warning("Belum ada kolom skill yang terdeteksi.")
+        if len(skill_columns) > 0:
+            user_inputs = []
+            cols = st.columns(3) # Dibagi 3 kolom sejajar
+            
+            for i, col_name in enumerate(skill_columns):
+                with cols[i % 3]:
+                    display_name = col_name.replace('Skill_', '').replace('_', ' ')
+                    is_checked = st.checkbox(display_name)
+                    user_inputs.append(1 if is_checked else 0)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Tombol utama warna merah/aksen
+            if st.button("Hitung prediksi gaji", type="primary"):
+                try:
+                    # Menghitung prediksi dari model
+                    prediksi = model.predict([user_inputs])
+                    gaji_tebakan = prediksi[0]
+                    
+                    # Mengambil rata-rata gaji dari dataset asli
+                    gaji_rata2 = df['Gaji_Clean'].mean()
+                    
+                    # Menampilkan teks hasil
+                    st.success(f"💡 Estimasi Penawaran Gaji: **Rp {gaji_tebakan:,.0f}**")
+                    
+                    # Menampilkan grafik dinamis
+                    st.markdown("📈 **Perbandingan Gaji: Prediksi vs Rata-rata Pasar IT**")
+                    
+                    data_grafik = pd.DataFrame({
+                        "Kategori": ["Prediksi Gaji Anda", "Rata-rata Gaji Pasar"],
+                        "Nominal (Rupiah)": [int(gaji_tebakan), int(gaji_rata2)]
+                    }).set_index("Kategori")
+                    
+                    st.bar_chart(data_grafik)
+                    
+                    # --- TAMBAHAN ANGKA DI BAWAH GRAFIK ---
+                    colA, colB = st.columns(2)
+                    with colA:
+                        st.info(f"🎯 **Gaji Anda:**\n### Rp {gaji_tebakan:,.0f}")
+                    with colB:
+                        st.info(f"📊 **Rata-rata Pasar:**\n### Rp {gaji_rata2:,.0f}")
+                    # --------------------------------------
+                    
+                except Exception as e:
+                    st.error(f"Gagal memproses prediksi. (Error: {e})")
+        else:
+            st.warning("Belum ada kolom skill yang terdeteksi.")
             
 except FileNotFoundError:
     st.warning("⚠️ File 'model_prediksi_gaji.pkl' tidak ditemukan di folder ini.")
